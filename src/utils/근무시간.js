@@ -81,6 +81,40 @@ export function 남은근무일수조회(연도, 월, 시작일 = 1) {
 }
 
 /**
+ * 내일부터 해당 월 말일까지 남은 금요일(공휴일 제외) 수 계산 (오늘 제외)
+ * 재택근무 가능일 수 산정에 사용한다.
+ * @param {number} 연도
+ * @param {number} 월 - 1~12
+ * @param {number} [시작일=1] - 입사일이 미래인 경우 그날부터 카운트
+ * @returns {number}
+ */
+export function 남은금요일수조회(연도, 월, 시작일 = 1) {
+  const 공휴일셋 = 연도별공휴일조회(연도)
+  const 내일 = new Date()
+  내일.setHours(0, 0, 0, 0)
+  내일.setDate(내일.getDate() + 1)
+
+  const 마지막날 = new Date(연도, 월, 0)
+  const 시작 = Math.max(1, Math.min(마지막날.getDate(), 시작일))
+  const 월시작 = new Date(연도, 월 - 1, 시작)
+
+  if (마지막날 < 내일) return 0
+
+  const 시작날 = 월시작 > 내일 ? 월시작 : 내일
+
+  let 금요일수 = 0
+  const 현재날짜 = new Date(시작날)
+  while (현재날짜 <= 마지막날) {
+    const 날짜문자열 = 날짜문자열변환(현재날짜)
+    if (현재날짜.getDay() === 5 && !공휴일셋.has(날짜문자열)) {
+      금요일수++
+    }
+    현재날짜.setDate(현재날짜.getDate() + 1)
+  }
+  return 금요일수
+}
+
+/**
  * 특정 월의 소정 근로일 목록 반환 (날짜 문자열 배열)
  * @param {number} 연도
  * @param {number} 월 - 1~12

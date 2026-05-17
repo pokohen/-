@@ -1,8 +1,8 @@
 <script setup>
-import { ref, computed, watchEffect } from 'vue'
+import { ref, computed, watch, watchEffect } from 'vue'
 import { VueDatePicker } from '@vuepic/vue-datepicker'
 import '@vuepic/vue-datepicker/dist/main.css'
-import { 월소정근로일수조회, 남은근무일수조회 } from '../utils/근무시간'
+import { 월소정근로일수조회, 남은근무일수조회, 남은금요일수조회 } from '../utils/근무시간'
 import { 월별공휴일조회, 공휴일데이터존재여부 } from '../utils/공휴일'
 import { 시분파싱, 시분변환 } from '../utils/시간포맷'
 import { 테마사용 } from '../composables/테마'
@@ -51,6 +51,8 @@ const 퇴근객체 = computed({
 })
 const 입사한달여부 = ref(false)
 const 입사일 = ref(오늘.getDate())
+const 재택근무여부 = ref(false)
+const 재택근무일수 = ref(0)
 
 const 하루근무분 = 8 * 60
 
@@ -165,6 +167,30 @@ const 남은근무일 = computed(() =>
   남은근무일수조회(선택연도.value, 선택월.value, 유효입사일.value),
 )
 const 경과근무일 = computed(() => 소정근로일.value - 남은근무일.value)
+
+// 재택근무: 남은 금요일 중 신청 일수만큼은 8시간이 자동 인정되므로
+// 일평균 목표 계산에서 제외하고 '출근일'만 분모로 사용한다.
+const 남은금요일 = computed(() =>
+  남은금요일수조회(선택연도.value, 선택월.value, 유효입사일.value),
+)
+const 재택일수 = computed(() => {
+  if (!재택근무여부.value) return 0
+  return Math.max(0, Math.min(남은금요일.value, Number(재택근무일수.value) || 0))
+})
+const 출근남은일 = computed(() => Math.max(0, 남은근무일.value - 재택일수.value))
+
+// 재택근무를 처음 켜면 남은 금요일 전체를 기본 선택
+watch(재택근무여부, (켜짐) => {
+  if (켜짐 && 재택근무일수.value === 0) {
+    재택근무일수.value = 남은금요일.value
+  }
+})
+// 월/입사일 변경 등으로 남은 금요일이 줄면 선택값을 자동 보정
+watchEffect(() => {
+  if (재택근무일수.value > 남은금요일.value) {
+    재택근무일수.value = 남은금요일.value
+  }
+})
 const 남은의무분 = computed(() =>
   Math.max(0, 의무근로분.value - 반영분.value),
 )
@@ -172,12 +198,12 @@ const 남은최대분 = computed(() =>
   Math.max(0, 최대근로분.value - 반영분.value),
 )
 const 의무달성일평균분 = computed(() => {
-  if (남은근무일.value === 0) return 0
-  return Math.round(남은의무분.value / 남은근무일.value)
+  if (출근남은일.value === 0) return 0
+  return Math.round(남은의무분.value / 출근남은일.value)
 })
 const 최대달성일평균분 = computed(() => {
-  if (남은근무일.value === 0) return 0
-  return Math.round(남은최대분.value / 남은근무일.value)
+  if (출근남은일.value === 0) return 0
+  return Math.round(남은최대분.value / 출근남은일.value)
 })
 const 달성률 = computed(() => {
   if (의무근로분.value === 0) return 0
@@ -306,6 +332,25 @@ watchEffect(() => {
         <p v-if="입사한달여부" class="input-hint join-hint">
           <strong>{{ 유효입사일 }}일</strong>부터 월말까지 근무일로 계산
           <span class="hint-extra">(입사일도 포함)</span>
+        </p>
+      </div>
+      <div v-if="!지난달여부" class="join-inline">
+        <label class="join-checkbox" :class="{ disabled: 남은금요일 === 0 }">
+          <input type="checkbox" v-model="재택근무여부" :disabled="남은금요일 === 0" />
+          <span>🏠 금요일 재택근무</span>
+        </label>
+        <div v-if="재택근무여부 && 남은금요일 > 0" class="join-date">
+          <label for="재택일수" class="join-date-label">재택 일수</label>
+          <select id="재택일수" v-model.number="재택근무일수" class="join-date-select">
+            <option v-for="n in (남은금요일 + 1)" :key="n - 1" :value="n - 1">{{ n - 1 }}일</option>
+          </select>
+        </div>
+        <p v-if="남은금요일 === 0" class="input-hint join-hint">
+          남은 금요일이 없어 재택근무를 신청할 수 없습니다.
+        </p>
+        <p v-else-if="재택근무여부" class="input-hint join-hint">
+          남은 금요일 <strong>{{ 남은금요일 }}일</strong> 중 <strong>{{ 재택일수 }}일</strong>을 재택근무로 반영
+          <span class="hint-extra">(재택일은 8시간이 자동 인정되어 일평균 목표 계산에서 제외)</span>
         </p>
       </div>
     </section>
@@ -579,7 +624,12 @@ watchEffect(() => {
           <div class="result-value highlight-blue">
             {{ 남은근무일 }}<span class="unit">일</span>
           </div>
-          <div class="result-sub">오늘 제외 · 내일부터</div>
+          <div class="result-sub">
+            <template v-if="재택일수 > 0">
+              재택 {{ 재택일수 }}일 + 출근 {{ 출근남은일 }}일 · 오늘 제외
+            </template>
+            <template v-else>오늘 제외 · 내일부터</template>
+          </div>
         </div>
         <div class="result-item">
           <div class="result-label">남은 의무 근무시간</div>
@@ -605,24 +655,33 @@ watchEffect(() => {
         </div>
       </div>
 
-      <div v-if="!지난달여부 && 남은근무일 > 0 && 반영분 > 0" class="avg-section">
+      <div v-if="!지난달여부 && 출근남은일 > 0 && 반영분 > 0" class="avg-section">
         <h3 class="avg-title">일평균 목표 근무시간</h3>
+        <p v-if="재택일수 > 0" class="avg-note">
+          재택 {{ 재택일수 }}일(8시간 자동 인정)을 제외한 <strong>출근 {{ 출근남은일 }}일</strong> 기준입니다.
+        </p>
         <div class="avg-grid">
           <div class="avg-card">
             <span class="avg-tag tag-mandatory">의무</span>
             <div class="avg-value">{{ 시분변환(의무달성일평균분) }}</div>
-            <div class="avg-sub">{{ 남은근무일 }}일 동안 매일</div>
+            <div class="avg-sub">출근 {{ 출근남은일 }}일 동안 매일</div>
           </div>
           <div class="avg-card">
             <span class="avg-tag tag-max">최대</span>
             <div class="avg-value">{{ 시분변환(최대달성일평균분) }}</div>
-            <div class="avg-sub">{{ 남은근무일 }}일 동안 매일</div>
+            <div class="avg-sub">출근 {{ 출근남은일 }}일 동안 매일</div>
           </div>
         </div>
       </div>
 
       <div v-if="!지난달여부 && 남은근무일 === 0" class="notice">
         🎊 남은 근무일이 없습니다!
+      </div>
+      <div
+        v-else-if="!지난달여부 && 출근남은일 === 0 && 재택일수 > 0"
+        class="notice"
+      >
+        🏠 남은 근무일 {{ 남은근무일 }}일이 모두 재택근무입니다. 출근일이 없어 일평균 목표를 표시하지 않습니다.
       </div>
     </section>
 
@@ -790,6 +849,13 @@ watchEffect(() => {
   accent-color: #3b82f6;
   cursor: pointer;
   margin: 0;
+}
+.join-checkbox.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.join-checkbox.disabled input[type='checkbox'] {
+  cursor: not-allowed;
 }
 .join-inline {
   display: flex;
@@ -1287,6 +1353,16 @@ watchEffect(() => {
   margin: 0 0 12px;
   letter-spacing: -0.01em;
 }
+.avg-note {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: -4px 0 12px;
+  line-height: 1.5;
+}
+.avg-note strong {
+  color: #3182f6;
+  font-weight: 700;
+}
 .avg-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1511,6 +1587,8 @@ watchEffect(() => {
 .theme-dark .placeholder-dash { color: #484f58; }
 .theme-dark .avg-section { border-top-color: #21262d; }
 .theme-dark .avg-title { color: #c9d1d9; }
+.theme-dark .avg-note { color: #8b949e; }
+.theme-dark .avg-note strong { color: #58a6ff; }
 .theme-dark .avg-card {
   background: #0d1117;
   border-color: #21262d;
