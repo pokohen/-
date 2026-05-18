@@ -136,6 +136,23 @@ export function 근무일목록조회(연도, 월) {
 }
 
 /**
+ * 해당 월의 실제 급여일 계산.
+ * 기준일은 25일이며, 그날이 주말이거나 공휴일이면 직전의 가장 가까운 평일로 앞당긴다.
+ * @param {number} 연도
+ * @param {number} 월 - 1~12
+ * @param {number} [기준일=25]
+ * @returns {Date}
+ */
+export function 급여일조회(연도, 월, 기준일 = 25) {
+  const 공휴일셋 = 연도별공휴일조회(연도)
+  const 날짜 = new Date(연도, 월 - 1, 기준일)
+  while (주말여부확인(날짜) || 공휴일셋.has(날짜문자열변환(날짜))) {
+    날짜.setDate(날짜.getDate() - 1)
+  }
+  return 날짜
+}
+
+/**
  * 이미 지난 근무일 수 계산
  * @param {number} 연도
  * @param {number} 월 - 1~12
