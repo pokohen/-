@@ -13,12 +13,15 @@ import 다음달미리보기 from './다음달미리보기.vue'
 const { 테마, 토글: 테마토글 } = 테마사용()
 const 다크모드 = computed(() => 테마.value === 'dark')
 
-const 오늘 = new Date()
+// TODO: 테스트용 금요일 강제 고정 — 배포 전 `const 오늘 = new Date()`로 되돌릴 것
+const 오늘 = new Date(2026, 4, 29) // 2026-05-29 (금)
+// const 오늘 = new Date()
 const 현재연도 = 오늘.getFullYear()
 const 현재월 = 오늘.getMonth() + 1
 
 const 요일이름 = ['일', '월', '화', '수', '목', '금', '토']
 const 오늘요일 = 오늘.getDay()
+const 오늘금요일여부 = 오늘요일 === 5
 const 오늘표시 = `${현재연도}년 ${현재월}월 ${오늘.getDate()}일 ${요일이름[오늘요일]}요일`
 const 재택안내 =
   오늘요일 === 5 ? '오늘은 재택근무' :
@@ -37,6 +40,7 @@ const 고정연장시간 = ref('10:00')
 const 입력근무시간 = ref('')
 const 오늘예상시간 = ref('0:00')
 const 오늘입력모드 = ref('출퇴근')
+const 오늘재택근무 = ref(false)
 const 출근시각 = ref('09:00')
 const 퇴근시각 = ref('18:00')
 const 휴게자동 = ref(true)
@@ -145,8 +149,20 @@ const 출퇴근근무분 = computed(() => {
 })
 
 const 오늘예상분 = computed(() => {
+  // 오늘이 재택근무일이면 누적 근무시간에 이미 반영되므로 오늘 시간은 0으로 계산(중복 방지)
+  if (오늘재택근무.value) return 0
   if (오늘입력모드.value === '출퇴근') return 출퇴근근무분.value
   return Math.max(0, 오늘예상결과.value.분)
+})
+// 재택 토글: 켜면 직접 입력값을 백업하고 0으로 리셋, 끄면 이전 값 복원
+const 오늘예상시간_백업 = ref('')
+watch(오늘재택근무, (켜짐) => {
+  if (켜짐) {
+    오늘예상시간_백업.value = 오늘예상시간.value
+    오늘예상시간.value = '0:00'
+  } else {
+    오늘예상시간.value = 오늘예상시간_백업.value || '0:00'
+  }
 })
 const 반영분 = computed(() => 입력분.value + 오늘예상분.value)
 
@@ -469,25 +485,43 @@ watchEffect(() => {
         <div class="input-group input-today">
           <div class="today-header">
             <label>오늘 예상 근무시간</label>
-            <div class="mode-switch" role="tablist" aria-label="입력 방식">
-              <button
-                type="button"
-                role="tab"
-                :aria-selected="오늘입력모드 === '출퇴근'"
-                :class="{ active: 오늘입력모드 === '출퇴근' }"
-                @click="오늘입력모드 = '출퇴근'"
-              >출·퇴근으로 계산</button>
-              <button
-                type="button"
-                role="tab"
-                :aria-selected="오늘입력모드 === '직접'"
-                :class="{ active: 오늘입력모드 === '직접' }"
-                @click="오늘입력모드 = '직접'"
-              >직접 입력</button>
+            <div class="today-controls">
+              <label v-if="오늘금요일여부" class="join-checkbox today-wfh">
+                <input type="checkbox" v-model="오늘재택근무" />
+                <span>🏠 재택</span>
+              </label>
+              <div v-if="!오늘재택근무" class="mode-switch" role="tablist" aria-label="입력 방식">
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="오늘입력모드 === '출퇴근'"
+                  :class="{ active: 오늘입력모드 === '출퇴근' }"
+                  @click="오늘입력모드 = '출퇴근'"
+                >출·퇴근으로 계산</button>
+                <button
+                  type="button"
+                  role="tab"
+                  :aria-selected="오늘입력모드 === '직접'"
+                  :class="{ active: 오늘입력모드 === '직접' }"
+                  @click="오늘입력모드 = '직접'"
+                >직접 입력</button>
+              </div>
             </div>
           </div>
 
-          <template v-if="오늘입력모드 === '출퇴근'">
+          <!-- 재택근무 활성 상태: 입력 영역을 대체 -->
+          <div v-if="오늘재택근무" class="wfh-active-card">
+            <span class="wfh-active-icon">🏠</span>
+            <div class="wfh-active-body">
+              <p class="wfh-active-title">오늘 재택근무 적용됨 · <strong>8:00</strong></p>
+              <p class="wfh-active-sub">
+                오늘 근무시간은 <strong>8:00</strong>으로 계산됩니다.
+                재택 근무시간은 위 ‘현재까지 근무시간’에 포함해 주세요.
+              </p>
+            </div>
+          </div>
+
+          <template v-if="!오늘재택근무 && 오늘입력모드 === '출퇴근'">
             <div class="commute-grid">
               <div class="commute-field">
                 <label>출근</label>
@@ -562,7 +596,7 @@ watchEffect(() => {
             </div>
           </template>
 
-          <template v-else>
+          <template v-else-if="!오늘재택근무">
             <div class="input-with-unit">
               <input
                 id="오늘예상"
@@ -1171,6 +1205,45 @@ watchEffect(() => {
   color: #1d4ed8;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
+.today-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.today-wfh {
+  height: 38px;
+}
+/* 재택근무 활성 상태 카드 */
+.wfh-active-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #eff6ff;
+  border: 1.5px solid #bfdbfe;
+  border-radius: 12px;
+}
+.wfh-active-icon {
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+.wfh-active-body {
+  flex: 1;
+  min-width: 0;
+}
+.wfh-active-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  margin: 0 0 4px;
+}
+.wfh-active-sub {
+  font-size: 0.8rem;
+  color: #475569;
+  margin: 0;
+  line-height: 1.55;
+}
 .dp-wrap {
   flex: 1;
   min-width: 0;
@@ -1622,6 +1695,18 @@ watchEffect(() => {
   color: #56d364;
 }
 .theme-dark .join-inline { border-top-color: #21262d; }
+/* 재택근무 체크/카드는 초록(달성) 대신 파랑(재택) 계열로 통일 */
+.theme-dark .today-wfh:has(input:checked) {
+  background: #122440;
+  border-color: #27477e;
+  color: #8cc2ff;
+}
+.theme-dark .wfh-active-card {
+  background: #122440;
+  border-color: #27477e;
+}
+.theme-dark .wfh-active-title { color: #8cc2ff; }
+.theme-dark .wfh-active-sub { color: #8b949e; }
 .theme-dark .join-date-label { color: #c9d1d9; }
 .theme-dark .join-date-select {
   background-color: #0d1117;
