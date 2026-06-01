@@ -14,8 +14,7 @@ const { 테마, 토글: 테마토글 } = 테마사용()
 const 다크모드 = computed(() => 테마.value === 'dark')
 
 // TODO: 테스트용 금요일 강제 고정 — 배포 전 `const 오늘 = new Date()`로 되돌릴 것
-const 오늘 = new Date(2026, 4, 29) // 2026-05-29 (금)
-// const 오늘 = new Date()
+const 오늘 = new Date()
 const 현재연도 = 오늘.getFullYear()
 const 현재월 = 오늘.getMonth() + 1
 
