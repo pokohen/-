@@ -70,6 +70,10 @@ const 입사한달여부 = ref(false)
 const 입사일 = ref(오늘.getDate())
 const 재택근무여부 = ref(false)
 const 재택근무일수 = ref(0)
+const 연차여부 = ref(false)
+const 연차일수 = ref(0)
+const 반차수 = ref(0)
+const 반반차수 = ref(0)
 
 const 하루근무분 = 8 * 60
 
@@ -206,7 +210,26 @@ const 재택일수 = computed(() => {
   if (!재택근무여부.value) return 0
   return Math.max(0, Math.min(남은금요일.value, Number(재택근무일수.value) || 0))
 })
-const 출근남은일 = computed(() => Math.max(0, 남은근무일.value - 재택일수.value))
+// 연차: 연차(8h)·반차(4h)·반반차(2h)는 '현재까지 근무시간'에 이미 포함된 시간이다.
+// 따라서 반영분에 다시 더하지 않고(중복 방지), '현재까지 근무시간'을 한도로 둔다.
+// 대신 사용한 만큼 환산 일수(연차 1d·반차 0.5d·반반차 0.25d)를 출근 남은일에서 제외한다.
+const 연차분요청 = computed(() =>
+  (Number(연차일수.value) || 0) * 480 +
+  (Number(반차수.value) || 0) * 240 +
+  (Number(반반차수.value) || 0) * 120,
+)
+const 연차예산분 = computed(() => 입력분.value) // 현재까지 근무시간 = 연차 상한
+const 연차잔여분 = computed(() => Math.max(0, 연차예산분.value - 연차분요청.value))
+const 연차분 = computed(() =>
+  연차여부.value ? Math.min(연차분요청.value, 연차예산분.value) : 0,
+)
+const 연차일수환산 = computed(() => 연차분.value / 480)
+const 연차초과여부 = computed(
+  () => 연차여부.value && 연차분요청.value > 연차예산분.value,
+)
+const 출근남은일 = computed(() =>
+  Math.max(0, 남은근무일.value - 재택일수.value - 연차일수환산.value),
+)
 
 // 재택근무를 처음 켜면 남은 금요일 전체를 기본 선택
 watch(재택근무여부, (켜짐) => {
@@ -220,6 +243,27 @@ watchEffect(() => {
     재택근무일수.value = 남은금요일.value
   }
 })
+// '현재까지 근무시간'이 줄면 연차 합계가 한도를 넘지 않도록 반반차→반차→연차 순으로 보정
+watchEffect(() => {
+  const 예산 = 연차예산분.value
+  let 연 = Number(연차일수.value) || 0
+  let 반 = Number(반차수.value) || 0
+  let 반반 = Number(반반차수.value) || 0
+  let 합 = 연 * 480 + 반 * 240 + 반반 * 120
+  while (합 > 예산 && 반반 > 0) { 반반--; 합 -= 120 }
+  while (합 > 예산 && 반 > 0) { 반--; 합 -= 240 }
+  while (합 > 예산 && 연 > 0) { 연--; 합 -= 480 }
+  if (연 !== 연차일수.value) 연차일수.value = 연
+  if (반 !== 반차수.value) 반차수.value = 반
+  if (반반 !== 반반차수.value) 반반차수.value = 반반
+})
+// 증감: 잔여 예산(현재까지 근무시간 − 이미 지정한 연차) 안에서만 증가 허용
+function 연차증감(필드, 델타) {
+  const 단위 = 필드 === '연차' ? 480 : 필드 === '반차' ? 240 : 120
+  if (델타 > 0 && 연차잔여분.value < 단위) return
+  const 대상 = 필드 === '연차' ? 연차일수 : 필드 === '반차' ? 반차수 : 반반차수
+  대상.value = Math.max(0, (Number(대상.value) || 0) + 델타)
+}
 const 남은의무분 = computed(() =>
   Math.max(0, 의무근로분.value - 반영분.value),
 )
@@ -431,7 +475,7 @@ watchEffect(() => {
         <span class="reflected-label">총 반영 시간</span>
         <span class="reflected-value">{{ 시분변환(반영분) }}</span>
         <span class="reflected-formula">
-          누적 {{ 시분변환(입력분) }}<template v-if="오늘예상분 > 0"> + 오늘 {{ 시분변환(오늘예상분) }}</template>
+          누적 {{ 시분변환(입력분) }}<template v-if="연차분 > 0"> (연차 {{ 시분변환(연차분) }} 포함)</template><template v-if="오늘예상분 > 0"> + 오늘 {{ 시분변환(오늘예상분) }}</template>
         </span>
       </div>
       <div class="input-grid">
@@ -479,6 +523,77 @@ watchEffect(() => {
           <p v-else class="input-hint">
             <strong>형식</strong>: <code>23:30</code>, <code>137:30</code>
             <span class="hint-extra">(콜론 없이 <code>2330</code>도 가능)</span>
+          </p>
+        </div>
+        <div class="input-group input-today">
+          <div class="today-header">
+            <label>🌴 연차 / 반차</label>
+            <label
+              class="join-checkbox today-wfh"
+              :class="{ disabled: 연차예산분 === 0 }"
+              :title="연차예산분 === 0 ? '현재까지 근무시간을 먼저 입력하세요' : undefined"
+            >
+              <input type="checkbox" v-model="연차여부" :disabled="연차예산분 === 0" />
+              <span>사용</span>
+            </label>
+          </div>
+          <div v-if="연차여부 && 연차예산분 > 0" class="annual-panel">
+            <div v-if="연차분 > 0" class="annual-hero">
+              <div class="annual-hero-main">
+                <span class="annual-hero-label">🌴 연차로 지정한 시간</span>
+                <span class="annual-hero-value">{{ 시분변환(연차분) }}</span>
+              </div>
+              <span class="annual-hero-badge">출근일 −{{ 연차일수환산 }}일</span>
+            </div>
+            <p v-else class="annual-hero-empty">
+              연차·반차를 지정하면 그만큼 출근일이 줄어요
+            </p>
+
+            <div class="annual-steppers">
+              <div
+                v-for="항목 in [
+                  { 키: '연차', 이름: '연차', 시간: '8h', 값: 연차일수, 단위: 480 },
+                  { 키: '반차', 이름: '반차', 시간: '4h', 값: 반차수, 단위: 240 },
+                  { 키: '반반차', 이름: '반반차', 시간: '2h', 값: 반반차수, 단위: 120 },
+                ]"
+                :key="항목.키"
+                class="annual-stepper"
+                :class="{ filled: 항목.값 > 0 }"
+              >
+                <div class="annual-stepper-top">
+                  <span class="annual-stepper-name">{{ 항목.이름 }}</span>
+                  <span class="annual-stepper-hour">{{ 항목.시간 }}</span>
+                </div>
+                <div class="annual-stepper-ctrl">
+                  <button
+                    type="button"
+                    class="annual-btn"
+                    :disabled="항목.값 <= 0"
+                    :aria-label="`${항목.이름} 줄이기`"
+                    @click="연차증감(항목.키, -1)"
+                  >−</button>
+                  <span class="annual-count">{{ 항목.값 }}</span>
+                  <button
+                    type="button"
+                    class="annual-btn"
+                    :disabled="연차잔여분 < 항목.단위"
+                    :aria-label="`${항목.이름} 늘리기`"
+                    @click="연차증감(항목.키, 1)"
+                  >+</button>
+                </div>
+              </div>
+            </div>
+
+            <p class="input-hint annual-hint">
+              <span class="hint-extra">현재까지 근무시간 {{ 시분변환(연차예산분) }} 중 지정 · 남은 한도 {{ 시분변환(연차잔여분) }}</span>
+            </p>
+          </div>
+          <p v-else-if="연차예산분 === 0" class="input-hint">
+            현재까지 근무시간을 먼저 입력하면 그 안에서 연차를 지정할 수 있어요.
+          </p>
+          <p v-else class="input-hint">
+            현재까지 근무시간 중 연차를 지정하면 그만큼 출근일이 줄어요.
+            <span class="hint-extra">연차 −1일 · 반차 −0.5일 · 반반차 −0.25일</span>
           </p>
         </div>
         <div class="input-group input-today">
@@ -682,8 +797,8 @@ watchEffect(() => {
             {{ 남은근무일 }}<span class="unit">일</span>
           </div>
           <div class="result-sub">
-            <template v-if="재택일수 > 0">
-              재택 {{ 재택일수 }}일 + 출근 {{ 출근남은일 }}일 · 오늘 제외
+            <template v-if="재택일수 > 0 || 연차일수환산 > 0">
+              출근 {{ 출근남은일 }}일<template v-if="재택일수 > 0"> · 재택 {{ 재택일수 }}일</template><template v-if="연차일수환산 > 0"> · 연차 {{ 연차일수환산 }}일</template> · 오늘 제외
             </template>
             <template v-else>오늘 제외 · 내일부터</template>
           </div>
@@ -714,8 +829,8 @@ watchEffect(() => {
 
       <div v-if="!지난달여부 && 출근남은일 > 0 && 반영분 > 0" class="avg-section">
         <h3 class="avg-title">일평균 목표 근무시간</h3>
-        <p v-if="재택일수 > 0" class="avg-note">
-          재택 {{ 재택일수 }}일(8시간 자동 인정)을 제외한 <strong>출근 {{ 출근남은일 }}일</strong> 기준입니다.
+        <p v-if="재택일수 > 0 || 연차일수환산 > 0" class="avg-note">
+          <template v-if="재택일수 > 0">재택 {{ 재택일수 }}일</template><template v-if="재택일수 > 0 && 연차일수환산 > 0"> · </template><template v-if="연차일수환산 > 0">연차 {{ 연차일수환산 }}일</template>(8시간 자동 인정)을 제외한 <strong>출근 {{ 출근남은일 }}일</strong> 기준입니다.
         </p>
         <div class="avg-grid">
           <div class="avg-card">
@@ -735,10 +850,10 @@ watchEffect(() => {
         🎊 남은 근무일이 없습니다!
       </div>
       <div
-        v-else-if="!지난달여부 && 출근남은일 === 0 && 재택일수 > 0"
+        v-else-if="!지난달여부 && 출근남은일 === 0 && (재택일수 > 0 || 연차일수환산 > 0)"
         class="notice"
       >
-        🏠 남은 근무일 {{ 남은근무일 }}일이 모두 재택근무입니다. 출근일이 없어 일평균 목표를 표시하지 않습니다.
+        🏠 남은 근무일 {{ 남은근무일 }}일이 모두 재택·연차입니다. 출근일이 없어 일평균 목표를 표시하지 않습니다.
       </div>
     </section>
 
@@ -1445,6 +1560,203 @@ watchEffect(() => {
   color: #94a3b8;
   margin-left: 6px;
 }
+.input-hint .hint-extra.hint-warn {
+  color: #b45309;
+  font-weight: 600;
+}
+
+/* 연차 패널 — 청록(teal) 톤으로 의무근로 green 카드와 구분 */
+.annual-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 13px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ecfeff 0%, #f0f9ff 100%);
+  border: 1.5px solid #a5f3fc;
+  animation: annual-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes annual-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .annual-panel { animation: none; }
+  .annual-btn:active:not(:disabled) { transform: none; }
+}
+.annual-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.annual-hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.annual-hero-label {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #0891b2;
+  letter-spacing: -0.01em;
+}
+.annual-hero-value {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: #0e7490;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.annual-hero-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(8, 145, 178, 0.12);
+  color: #0e7490;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.annual-hero-empty {
+  margin: 0;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #5b829a;
+  letter-spacing: -0.01em;
+}
+.annual-steppers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.annual-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1.5px solid #cffafe;
+  border-radius: 12px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.annual-stepper.filled {
+  border-color: #67e8f9;
+  background: #fff;
+}
+.annual-stepper-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.annual-stepper-name {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #164e63;
+}
+.annual-stepper-hour {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #0e7490;
+  background: #cffafe;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+}
+.annual-stepper-ctrl {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.annual-btn {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 9px;
+  border: 1.5px solid #a5f3fc;
+  background: #fff;
+  color: #0e7490;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, border-color 0.12s, transform 0.08s;
+}
+.annual-btn:hover:not(:disabled) {
+  background: #ecfeff;
+  border-color: #22d3ee;
+}
+.annual-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.annual-btn:focus-visible {
+  outline: none;
+  border-color: #06b6d4;
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.22);
+}
+.annual-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+.annual-count {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+  min-width: 2.4ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.annual-hint {
+  margin: 0;
+}
+
+/* 연차 패널 — 다크 */
+.theme-dark .annual-panel {
+  background: linear-gradient(135deg, #082f49 0%, #0c1b2e 100%);
+  border-color: #0e4d6e;
+}
+.theme-dark .annual-hero-label { color: #38bdf8; }
+.theme-dark .annual-hero-value { color: #67e8f9; }
+.theme-dark .annual-hero-badge {
+  background: rgba(14, 165, 233, 0.2);
+  color: #7dd3fc;
+}
+.theme-dark .annual-hero-empty { color: #7da9c0; }
+.theme-dark .annual-stepper {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: #0e4d6e;
+}
+.theme-dark .annual-stepper.filled {
+  background: rgba(14, 165, 233, 0.1);
+  border-color: #0ea5e9;
+}
+.theme-dark .annual-stepper-name { color: #c9d1d9; }
+.theme-dark .annual-stepper-hour {
+  background: #0c3a52;
+  color: #7dd3fc;
+}
+.theme-dark .annual-btn {
+  background: #161b22;
+  border-color: #0e4d6e;
+  color: #7dd3fc;
+}
+.theme-dark .annual-btn:hover:not(:disabled) {
+  background: #0d1117;
+  border-color: #0ea5e9;
+}
+.theme-dark .annual-count { color: #f0f6fc; }
 .input-error {
   font-size: 0.82rem;
   color: #b91c1c;
