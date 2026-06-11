@@ -417,25 +417,6 @@ watchEffect(() => {
           <span class="hint-extra">(입사일도 포함)</span>
         </p>
       </div>
-      <div v-if="!지난달여부" class="join-inline">
-        <label class="join-checkbox" :class="{ disabled: 남은금요일 === 0 }">
-          <input type="checkbox" v-model="재택근무여부" :disabled="남은금요일 === 0" />
-          <span>🏠 금요일 재택근무</span>
-        </label>
-        <div v-if="재택근무여부 && 남은금요일 > 0" class="join-date">
-          <label for="재택일수" class="join-date-label">재택 일수</label>
-          <select id="재택일수" v-model.number="재택근무일수" class="join-date-select">
-            <option v-for="n in (남은금요일 + 1)" :key="n - 1" :value="n - 1">{{ n - 1 }}일</option>
-          </select>
-        </div>
-        <p v-if="남은금요일 === 0" class="input-hint join-hint">
-          남은 금요일이 없어 재택근무를 신청할 수 없습니다.
-        </p>
-        <p v-else-if="재택근무여부" class="input-hint join-hint">
-          남은 금요일 <strong>{{ 남은금요일 }}일</strong> 중 <strong>{{ 재택일수 }}일</strong>을 재택근무로 반영
-          <span class="hint-extra">(재택일은 8시간이 자동 인정되어 일평균 목표 계산에서 제외)</span>
-        </p>
-      </div>
     </section>
 
     <!-- 공휴일 데이터 부재 알림 -->
@@ -523,6 +504,31 @@ watchEffect(() => {
           <p v-else class="input-hint">
             <strong>형식</strong>: <code>23:30</code>, <code>137:30</code>
             <span class="hint-extra">(콜론 없이 <code>2330</code>도 가능)</span>
+          </p>
+        </div>
+        <div v-if="!지난달여부" class="input-group input-today">
+          <div class="today-header">
+            <label>🏠 금요일 재택근무</label>
+            <label
+              class="join-checkbox today-wfh"
+              :class="{ disabled: 남은금요일 === 0 }"
+            >
+              <input type="checkbox" v-model="재택근무여부" :disabled="남은금요일 === 0" />
+              <span>사용</span>
+            </label>
+          </div>
+          <div v-if="재택근무여부 && 남은금요일 > 0" class="join-date">
+            <label for="재택일수" class="join-date-label">재택 일수</label>
+            <select id="재택일수" v-model.number="재택근무일수" class="join-date-select">
+              <option v-for="n in (남은금요일 + 1)" :key="n - 1" :value="n - 1">{{ n - 1 }}일</option>
+            </select>
+          </div>
+          <p v-if="남은금요일 === 0" class="input-hint join-hint">
+            남은 금요일이 없어 재택근무를 신청할 수 없습니다.
+          </p>
+          <p v-else-if="재택근무여부" class="input-hint join-hint">
+            남은 금요일 <strong>{{ 남은금요일 }}일</strong> 중 <strong>{{ 재택일수 }}일</strong>을 재택근무로 반영
+            <span class="hint-extra">(재택일은 8시간이 자동 인정되어 일평균 목표 계산에서 제외)</span>
           </p>
         </div>
         <div class="input-group input-today">
