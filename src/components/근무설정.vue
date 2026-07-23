@@ -63,6 +63,17 @@ const 퇴근객체 = computed({
   set: (값) => { 퇴근시각.value = 값 ? 시각조립(값.hours, 값.minutes) : '' },
 })
 
+// 오늘 입력 방식: 재택 / 출퇴근 / 직접 을 하나의 세그먼트 토글로 통합
+const 오늘모드 = computed(() => (오늘재택근무.value ? '재택' : 오늘입력모드.value))
+function 오늘모드설정(모드) {
+  if (모드 === '재택') {
+    오늘재택근무.value = true
+  } else {
+    오늘재택근무.value = false
+    오늘입력모드.value = 모드
+  }
+}
+
 function 지금시각() {
   const 지금 = new Date()
   const 시 = String(지금.getHours()).padStart(2, '0')
@@ -155,55 +166,37 @@ function 연차증감(필드, 델타) {
           <span class="hint-extra">(콜론 없이 <code>2330</code>도 가능)</span>
         </p>
       </div>
-      <div v-if="!지난달여부" class="input-group input-today">
-        <div class="today-header">
-          <label>🏠 금요일 재택근무</label>
-          <label
-            class="join-checkbox today-wfh"
-            :class="{ disabled: 남은금요일 === 0 }"
-          >
-            <input type="checkbox" v-model="재택근무여부" :disabled="남은금요일 === 0" />
-            <span>사용</span>
-          </label>
-        </div>
-        <div v-if="재택근무여부 && 남은금요일 > 0" class="join-date">
+      <div v-if="!지난달여부" class="input-group input-today setting-row">
+        <label class="setting-head" :class="{ disabled: 남은금요일 === 0 }">
+          <span class="setting-title">🏠 금요일 재택근무</span>
+          <span class="switch">
+            <input type="checkbox" class="switch-input" v-model="재택근무여부" :disabled="남은금요일 === 0" />
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </span>
+        </label>
+        <div v-if="재택근무여부 && 남은금요일 > 0" class="setting-body setting-body--inline">
           <label for="재택일수" class="join-date-label">재택 일수</label>
           <select id="재택일수" v-model.number="재택근무일수" class="join-date-select">
             <option v-for="n in (남은금요일 + 1)" :key="n - 1" :value="n - 1">{{ n - 1 }}일</option>
           </select>
+          <span class="setting-hint">남은 금요일 <strong>{{ 남은금요일 }}일</strong> 중 <strong>{{ 재택일수 }}일</strong> 반영 · 8시간 자동 인정</span>
         </div>
-        <p v-if="남은금요일 === 0" class="input-hint join-hint">
-          남은 금요일이 없어 재택근무를 신청할 수 없습니다.
-        </p>
-        <p v-else-if="재택근무여부" class="input-hint join-hint">
-          남은 금요일 <strong>{{ 남은금요일 }}일</strong> 중 <strong>{{ 재택일수 }}일</strong>을 재택근무로 반영
-          <span class="hint-extra">(재택일은 8시간이 자동 인정되어 일평균 목표 계산에서 제외)</span>
-        </p>
+        <p v-else-if="남은금요일 === 0" class="setting-hint">남은 금요일이 없어 재택근무를 신청할 수 없습니다.</p>
       </div>
-      <div class="input-group input-today">
-        <div class="today-header">
-          <label>🌴 연차 / 반차</label>
-          <label
-            class="join-checkbox today-wfh"
-            :class="{ disabled: 연차예산분 === 0 }"
-            :title="연차예산분 === 0 ? '현재까지 근무시간을 먼저 입력하세요' : undefined"
-          >
-            <input type="checkbox" v-model="연차여부" :disabled="연차예산분 === 0" />
-            <span>사용</span>
-          </label>
-        </div>
-        <div v-if="연차여부 && 연차예산분 > 0" class="annual-panel">
-          <div v-if="연차분 > 0" class="annual-hero">
-            <div class="annual-hero-main">
-              <span class="annual-hero-label">🌴 연차로 지정한 시간</span>
-              <span class="annual-hero-value">{{ 시분변환(연차분) }}</span>
-            </div>
-            <span class="annual-hero-badge">출근일 −{{ 연차일수환산 }}일</span>
-          </div>
-          <p v-else class="annual-hero-empty">
-            연차·반차를 지정하면 그만큼 출근일이 줄어요
-          </p>
 
+      <div class="input-group input-today setting-row">
+        <label
+          class="setting-head"
+          :class="{ disabled: 연차예산분 === 0 }"
+          :title="연차예산분 === 0 ? '현재까지 근무시간을 먼저 입력하세요' : undefined"
+        >
+          <span class="setting-title">🌴 연차 / 반차</span>
+          <span class="switch">
+            <input type="checkbox" class="switch-input" v-model="연차여부" :disabled="연차예산분 === 0" />
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </span>
+        </label>
+        <div v-if="연차여부 && 연차예산분 > 0" class="setting-body">
           <div class="annual-steppers">
             <div
               v-for="항목 in [
@@ -215,10 +208,8 @@ function 연차증감(필드, 델타) {
               class="annual-stepper"
               :class="{ filled: 항목.값 > 0 }"
             >
-              <div class="annual-stepper-top">
-                <span class="annual-stepper-name">{{ 항목.이름 }}</span>
-                <span class="annual-stepper-hour">{{ 항목.시간 }}</span>
-              </div>
+              <span class="annual-stepper-name">{{ 항목.이름 }}</span>
+              <span class="annual-stepper-hour">{{ 항목.시간 }}</span>
               <div class="annual-stepper-ctrl">
                 <button
                   type="button"
@@ -238,43 +229,39 @@ function 연차증감(필드, 델타) {
               </div>
             </div>
           </div>
-
-          <p class="input-hint annual-hint">
-            <span class="hint-extra">현재까지 근무시간 {{ 시분변환(연차예산분) }} 중 지정 · 남은 한도 {{ 시분변환(연차잔여분) }}</span>
+          <p class="setting-hint">
+            <template v-if="연차분 > 0">지정 <strong>{{ 시분변환(연차분) }}</strong> · 출근일 −{{ 연차일수환산 }}일 · </template>남은 한도 {{ 시분변환(연차잔여분) }} / {{ 시분변환(연차예산분) }}
           </p>
         </div>
-        <p v-else-if="연차예산분 === 0" class="input-hint">
-          현재까지 근무시간을 먼저 입력하면 그 안에서 연차를 지정할 수 있어요.
-        </p>
-        <p v-else class="input-hint">
-          현재까지 근무시간 중 연차를 지정하면 그만큼 출근일이 줄어요.
-          <span class="hint-extra">연차 −1일 · 반차 −0.5일 · 반반차 −0.25일</span>
-        </p>
+        <p v-else-if="연차예산분 === 0" class="setting-hint">현재까지 근무시간을 먼저 입력하면 그 안에서 연차를 지정할 수 있어요.</p>
+        <p v-else class="setting-hint">연차·반차를 지정하면 그만큼 출근일이 줄어요 <span class="hint-extra">· 연차 −1일 · 반차 −0.5일 · 반반차 −0.25일</span></p>
       </div>
       <div class="input-group input-today">
         <div class="today-header">
           <label>오늘 예상 근무시간</label>
-          <div class="today-controls">
-            <label v-if="오늘금요일여부" class="join-checkbox today-wfh">
-              <input type="checkbox" v-model="오늘재택근무" />
-              <span>🏠 재택</span>
-            </label>
-            <div v-if="!오늘재택근무" class="mode-switch" role="tablist" aria-label="입력 방식">
-              <button
-                type="button"
-                role="tab"
-                :aria-selected="오늘입력모드 === '출퇴근'"
-                :class="{ active: 오늘입력모드 === '출퇴근' }"
-                @click="오늘입력모드 = '출퇴근'"
-              >출·퇴근으로 계산</button>
-              <button
-                type="button"
-                role="tab"
-                :aria-selected="오늘입력모드 === '직접'"
-                :class="{ active: 오늘입력모드 === '직접' }"
-                @click="오늘입력모드 = '직접'"
-              >직접 입력</button>
-            </div>
+          <div class="mode-switch" role="tablist" aria-label="입력 방식">
+            <button
+              v-if="오늘금요일여부"
+              type="button"
+              role="tab"
+              :aria-selected="오늘모드 === '재택'"
+              :class="{ active: 오늘모드 === '재택' }"
+              @click="오늘모드설정('재택')"
+            >🏠 재택</button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="오늘모드 === '출퇴근'"
+              :class="{ active: 오늘모드 === '출퇴근' }"
+              @click="오늘모드설정('출퇴근')"
+            >출·퇴근으로 계산</button>
+            <button
+              type="button"
+              role="tab"
+              :aria-selected="오늘모드 === '직접'"
+              :class="{ active: 오늘모드 === '직접' }"
+              @click="오늘모드설정('직접')"
+            >직접 입력</button>
           </div>
         </div>
 
@@ -423,10 +410,110 @@ function 연차증감(필드, 델타) {
 .input-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 16px;
 }
 .input-today {
   grid-column: 1 / -1;
+}
+/* 설정 토글 행 (토스/라인 설정 스타일) */
+.setting-row {
+  gap: 0;
+  padding: 4px 2px;
+  border-top: 1px solid #f0f1f3;
+}
+.setting-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 2px;
+  cursor: pointer;
+  user-select: none;
+}
+.setting-head.disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.setting-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #33383f;
+  letter-spacing: -0.01em;
+}
+.setting-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 2px 12px;
+}
+/* 재택근무: 라벨·셀렉트·안내를 한 줄로 컴팩트하게 */
+.setting-body--inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.setting-body--inline .setting-hint {
+  flex: 1 1 auto;
+}
+.setting-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #8b95a1;
+  line-height: 1.5;
+}
+.setting-hint strong {
+  color: #4e5968;
+  font-weight: 700;
+}
+
+/* 토글 스위치 */
+.switch {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.switch-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.switch-input:disabled {
+  cursor: not-allowed;
+}
+.switch-track {
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: #d1d6db;
+  transition: background 0.2s ease;
+}
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.28);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.switch-input:checked + .switch-track {
+  background: #3182f6;
+}
+.switch-input:checked + .switch-track .switch-thumb {
+  transform: translateX(18px);
+}
+.switch-input:focus-visible + .switch-track {
+  box-shadow: 0 0 0 3px rgba(49, 130, 246, 0.3);
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch-thumb { transition: none; }
 }
 .today-header {
   display: flex;
@@ -469,8 +556,22 @@ function 연차증감(필드, 델타) {
   gap: 8px;
   flex-wrap: wrap;
 }
+/* '사용'·'재택' 토글 — 테두리 없이 컴팩트하게 */
 .today-wfh {
-  height: 38px;
+  height: auto;
+  padding: 3px 4px;
+  border: none;
+  background: transparent;
+  font-size: 0.82rem;
+}
+.today-wfh:hover {
+  background: transparent;
+  color: #1d4ed8;
+}
+.today-wfh:has(input:checked) {
+  background: transparent;
+  border-color: transparent;
+  color: #1d4ed8;
 }
 /* 재택근무 활성 상태 카드 */
 .wfh-active-card {
@@ -502,6 +603,7 @@ function 연차증감(필드, 델타) {
   margin: 0;
   line-height: 1.55;
 }
+
 .dp-wrap {
   flex: 1;
   min-width: 0;
@@ -687,73 +789,7 @@ function 연차증감(필드, 델타) {
   box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
 }
 
-/* 연차 패널 — 청록(teal) 톤으로 의무근로 green 카드와 구분 */
-.annual-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-  padding: 13px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #ecfeff 0%, #f0f9ff 100%);
-  border: 1.5px solid #a5f3fc;
-  animation: annual-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-@keyframes annual-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .annual-panel { animation: none; }
-  .annual-btn:active:not(:disabled) { transform: none; }
-}
-.annual-hero {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.annual-hero-main {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.annual-hero-label {
-  font-size: 0.74rem;
-  font-weight: 700;
-  color: #0891b2;
-  letter-spacing: -0.01em;
-}
-.annual-hero-value {
-  font-size: 1.55rem;
-  font-weight: 800;
-  color: #0e7490;
-  line-height: 1;
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-}
-.annual-hero-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 11px;
-  border-radius: 999px;
-  background: rgba(8, 145, 178, 0.12);
-  color: #0e7490;
-  font-size: 0.78rem;
-  font-weight: 700;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.annual-hero-empty {
-  margin: 0;
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #5b829a;
-  letter-spacing: -0.01em;
-}
+/* 연차 스텝퍼 — 1 : 1 : 1 세 열 */
 .annual-steppers {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -761,82 +797,73 @@ function 연차증감(필드, 델타) {
 }
 .annual-stepper {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1.5px solid #cffafe;
-  border-radius: 12px;
-  transition: border-color 0.15s, background 0.15s;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  background: #f7f8fa;
+  border-radius: 10px;
+  transition: background 0.15s;
 }
 .annual-stepper.filled {
-  border-color: #67e8f9;
-  background: #fff;
-}
-.annual-stepper-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  background: #e8fbfb;
 }
 .annual-stepper-name {
-  font-size: 0.86rem;
+  font-size: 0.84rem;
   font-weight: 700;
-  color: #164e63;
+  color: #33383f;
 }
 .annual-stepper-hour {
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   font-weight: 800;
   color: #0e7490;
-  background: #cffafe;
-  padding: 2px 7px;
-  border-radius: 6px;
-  letter-spacing: 0.02em;
+  background: #d3f6f7;
+  padding: 2px 5px;
+  border-radius: 5px;
+  letter-spacing: 0.01em;
 }
 .annual-stepper-ctrl {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  gap: 4px;
+  margin-left: auto;
 }
 .annual-btn {
-  width: 36px;
-  height: 36px;
+  width: 26px;
+  height: 26px;
   flex: none;
-  border-radius: 9px;
-  border: 1.5px solid #a5f3fc;
-  background: #fff;
-  color: #0e7490;
-  font-size: 1.15rem;
+  border-radius: 7px;
+  border: none;
+  background: #eef1f4;
+  color: #4e5968;
+  font-size: 1rem;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.12s, border-color 0.12s, transform 0.08s;
+  transition: background 0.12s, transform 0.08s;
 }
 .annual-btn:hover:not(:disabled) {
-  background: #ecfeff;
-  border-color: #22d3ee;
+  background: #e2e6ea;
+  color: #191f28;
 }
 .annual-btn:active:not(:disabled) {
   transform: scale(0.92);
 }
 .annual-btn:focus-visible {
   outline: none;
-  border-color: #06b6d4;
   box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.22);
 }
 .annual-btn:disabled {
-  opacity: 0.38;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 .annual-count {
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   font-weight: 800;
   color: #0f172a;
-  min-width: 2.4ch;
+  min-width: 1.4ch;
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -909,8 +936,8 @@ function 연차증감(필드, 델타) {
 .theme-dark .midnight-badge { color: #a5b4fc; }
 /* 재택근무 체크/카드는 초록(달성) 대신 파랑(재택) 계열로 통일 */
 .theme-dark .today-wfh:has(input:checked) {
-  background: #122440;
-  border-color: #27477e;
+  background: transparent;
+  border-color: transparent;
   color: #8cc2ff;
 }
 .theme-dark .wfh-active-card {
@@ -920,39 +947,31 @@ function 연차증감(필드, 델타) {
 .theme-dark .wfh-active-title { color: #8cc2ff; }
 .theme-dark .wfh-active-sub { color: #8b949e; }
 
-/* 연차 패널 — 다크 */
-.theme-dark .annual-panel {
-  background: linear-gradient(135deg, #082f49 0%, #0c1b2e 100%);
-  border-color: #0e4d6e;
-}
-.theme-dark .annual-hero-label { color: #38bdf8; }
-.theme-dark .annual-hero-value { color: #67e8f9; }
-.theme-dark .annual-hero-badge {
-  background: rgba(14, 165, 233, 0.2);
-  color: #7dd3fc;
-}
-.theme-dark .annual-hero-empty { color: #7da9c0; }
+/* 설정 토글 행 · 연차 스텝퍼 — 다크 */
+.theme-dark .setting-row { border-top-color: #21262d; }
+.theme-dark .setting-title { color: #f0f6fc; }
+.theme-dark .setting-hint { color: #8b949e; }
+.theme-dark .setting-hint strong { color: #c9d1d9; }
+.theme-dark .switch-track { background: #30363d; }
+.theme-dark .switch-input:checked + .switch-track { background: #1f6feb; }
 .theme-dark .annual-stepper {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: #0e4d6e;
+  background: rgba(255, 255, 255, 0.05);
 }
 .theme-dark .annual-stepper.filled {
-  background: rgba(14, 165, 233, 0.1);
-  border-color: #0ea5e9;
+  background: rgba(14, 165, 233, 0.16);
 }
-.theme-dark .annual-stepper-name { color: #c9d1d9; }
+.theme-dark .annual-stepper-name { color: #f0f6fc; }
 .theme-dark .annual-stepper-hour {
   background: #0c3a52;
   color: #7dd3fc;
 }
 .theme-dark .annual-btn {
-  background: #161b22;
-  border-color: #0e4d6e;
-  color: #7dd3fc;
+  background: rgba(255, 255, 255, 0.08);
+  color: #c9d1d9;
 }
 .theme-dark .annual-btn:hover:not(:disabled) {
-  background: #0d1117;
-  border-color: #0ea5e9;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
 }
 .theme-dark .annual-count { color: #f0f6fc; }
 
