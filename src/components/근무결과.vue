@@ -1,8 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { 시분변환 } from '../utils/시간포맷'
 
-defineProps({
+const props = defineProps({
   지난달여부: Boolean,
   반영분: Number,
   달성률: Number,
@@ -23,9 +23,13 @@ defineProps({
   최대달성일평균분: Number,
   마일리지분: Number,
   남은정규분: Number,
+  자동인정분: Number,
 })
 
-const 마일리지표시 = ref(false)
+// 출근일이 채워야 할 의무: 마일리지 = 남은정규분 − 출근의무 이므로 출근의무 = 남은정규분 − 마일리지분
+const 출근의무분 = computed(() => props.남은정규분 - props.마일리지분)
+// 남은 의무 전체(재택·연차 자동인정 포함) = 출근의무 + 자동인정분
+const 남은의무총분 = computed(() => 출근의무분.value + props.자동인정분)
 </script>
 
 <template>
@@ -106,38 +110,22 @@ const 마일리지표시 = ref(false)
       </div>
     </div>
 
-    <div v-if="!지난달여부 && 반영분 > 0" class="mileage-block">
-      <label class="mileage-toggle">
-        <input v-model="마일리지표시" type="checkbox" class="mileage-check" />
-        <span class="mileage-track"><span class="mileage-thumb"></span></span>
-        <span class="mileage-toggle-text">🎯 근무 마일리지 표시</span>
-      </label>
-
-      <div
-        v-if="마일리지표시"
-        class="mileage-card"
-        :class="마일리지분 >= 0 ? 'mileage-plus' : 'mileage-minus'"
-      >
-        <div class="mileage-head">
-          <span class="mileage-badge">{{ 마일리지분 >= 0 ? '적립 마일리지' : '더 해야 할 시간' }}</span>
-        </div>
-        <div class="mileage-value">
-          {{ 마일리지분 >= 0 ? '+' : '−' }}{{ 시분변환(Math.abs(마일리지분)) }}
-        </div>
-        <div class="mileage-sub">
-          남은 근무일 정규시간({{ 시분변환(남은정규분) }}) 기준,
-          <template v-if="마일리지분 >= 0">매일 8시간만 채워도 의무를 <strong>이만큼 초과</strong>합니다.</template>
-          <template v-else>매일 8시간을 채워도 의무에 <strong>이만큼 부족</strong>해 더 근무해야 합니다.</template>
-        </div>
-      </div>
-    </div>
-
     <div v-if="!지난달여부 && 출근남은일 > 0 && 반영분 > 0" class="avg-section">
       <h3 class="avg-title">일평균 목표 근무시간</h3>
       <p v-if="재택일수 > 0 || 연차일수환산 > 0" class="avg-note">
         <template v-if="재택일수 > 0">재택 {{ 재택일수 }}일</template><template v-if="재택일수 > 0 && 연차일수환산 > 0"> · </template><template v-if="연차일수환산 > 0">연차 {{ 연차일수환산 }}일</template>(8시간 자동 인정)을 제외한 <strong>출근 {{ 출근남은일 }}일</strong> 기준입니다.
       </p>
-      <div class="avg-grid">
+      <div class="avg-grid has-mileage">
+        <div
+          class="avg-card avg-card--mileage"
+          :class="마일리지분 >= 0 ? 'is-plus' : 'is-minus'"
+        >
+          <span class="avg-tag avg-tag--mileage">마일리지</span>
+          <div class="avg-value">
+            {{ 마일리지분 >= 0 ? '+' : '−' }}{{ 시분변환(Math.abs(마일리지분)) }}
+          </div>
+          <div class="avg-sub">정규시간 대비 {{ 마일리지분 >= 0 ? '초과' : '부족' }}</div>
+        </div>
         <div class="avg-card">
           <span class="avg-tag tag-mandatory">의무</span>
           <div class="avg-value">{{ 시분변환(의무달성일평균분) }}</div>
@@ -147,6 +135,18 @@ const 마일리지표시 = ref(false)
           <span class="avg-tag tag-max">최대</span>
           <div class="avg-value">{{ 시분변환(최대달성일평균분) }}</div>
           <div class="avg-sub">출근 {{ 출근남은일 }}일 동안 매일</div>
+        </div>
+      </div>
+      <div class="mileage-calc-line">
+        <div class="mileage-calc-line-row">
+          출근 {{ 출근남은일 }}일 × 8h = <b>정규 {{ 시분변환(남은정규분) }}</b>
+        </div>
+        <div v-if="자동인정분 > 0" class="mileage-calc-line-row">
+          남은 의무 {{ 시분변환(남은의무총분) }} − 재택·연차 {{ 시분변환(자동인정분) }} = <b>출근 의무 {{ 시분변환(출근의무분) }}</b>
+        </div>
+        <div class="mileage-calc-line-row">
+          정규 {{ 시분변환(남은정규분) }} − {{ 자동인정분 > 0 ? '출근 의무' : '의무' }} {{ 시분변환(출근의무분) }} =
+          <strong :class="마일리지분 >= 0 ? 'is-plus' : 'is-minus'">{{ 마일리지분 >= 0 ? '+' : '−' }}{{ 시분변환(Math.abs(마일리지분)) }}</strong>
         </div>
       </div>
     </div>
@@ -233,116 +233,56 @@ const 마일리지표시 = ref(false)
   font-weight: 600;
 }
 
-/* Mileage toggle */
-.mileage-block {
-  margin: -4px 0 20px;
+/* Mileage card (left of daily-average cards) */
+.avg-card--mileage.is-plus {
+  background: #edfaf3;
+  border-color: #bdeccf;
 }
-.mileage-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
+.avg-card--mileage.is-minus {
+  background: #fdeef0;
+  border-color: #f8cace;
 }
-.mileage-check {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-.mileage-track {
-  position: relative;
-  flex-shrink: 0;
-  width: 42px;
-  height: 24px;
-  border-radius: 999px;
-  background: #d1d6db;
-  transition: background 0.18s ease;
-}
-.mileage-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
-  transition: transform 0.18s ease;
-}
-.mileage-check:checked + .mileage-track {
-  background: #3182f6;
-}
-.mileage-check:checked + .mileage-track .mileage-thumb {
-  transform: translateX(18px);
-}
-.mileage-check:focus-visible + .mileage-track {
-  box-shadow: 0 0 0 3px rgba(49, 130, 246, 0.3);
-}
-.mileage-toggle-text {
-  font-size: 0.86rem;
-  font-weight: 700;
+.avg-tag--mileage {
+  background: #eef1f4;
   color: #4e5968;
-  letter-spacing: -0.01em;
 }
-.mileage-card {
-  margin-top: 14px;
-  border-radius: 14px;
-  padding: 18px 18px 16px;
-  border: 1px solid transparent;
-}
-.mileage-plus {
-  background: #e6f9f0;
-  border-color: #b6ecce;
-}
-.mileage-minus {
-  background: #fdecee;
-  border-color: #f8c9ce;
-}
-.mileage-head {
-  margin-bottom: 8px;
-}
-.mileage-badge {
-  display: inline-block;
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 3px 9px;
-  border-radius: 999px;
-  letter-spacing: 0.01em;
-}
-.mileage-plus .mileage-badge {
+.avg-card--mileage.is-plus .avg-tag--mileage {
   background: #06c755;
   color: #fff;
 }
-.mileage-minus .mileage-badge {
+.avg-card--mileage.is-minus .avg-tag--mileage {
   background: #f04452;
   color: #fff;
 }
-.mileage-value {
-  font-size: 1.9rem;
-  font-weight: 800;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  margin-bottom: 8px;
-}
-.mileage-plus .mileage-value {
+.avg-card--mileage.is-plus .avg-value {
   color: #06873e;
 }
-.mileage-minus .mileage-value {
+.avg-card--mileage.is-minus .avg-value {
   color: #d63a46;
 }
-.mileage-sub {
-  font-size: 0.78rem;
+
+/* Mileage calc line (below grid) */
+.mileage-calc-line {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.76rem;
   line-height: 1.5;
-  color: #5b6472;
+  color: #8b95a1;
+  margin: 12px 0 0;
+  font-variant-numeric: tabular-nums;
 }
-.mileage-sub strong {
+.mileage-calc-line-row b {
   font-weight: 700;
+  color: #4e5968;
 }
-.mileage-plus .mileage-sub strong {
+.mileage-calc-line strong {
+  font-weight: 800;
+}
+.mileage-calc-line strong.is-plus {
   color: #06873e;
 }
-.mileage-minus .mileage-sub strong {
+.mileage-calc-line strong.is-minus {
   color: #d63a46;
 }
 
@@ -373,6 +313,9 @@ const 마일리지표시 = ref(false)
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+.avg-grid.has-mileage {
+  grid-template-columns: repeat(3, 1fr);
 }
 .avg-card {
   background: #f9fafb;
@@ -446,24 +389,23 @@ const 마일리지표시 = ref(false)
 .theme-dark .result-value .unit { color: #c9d1d9; }
 .theme-dark .result-sub { color: #8b949e; }
 .theme-dark .placeholder-dash { color: #484f58; }
-.theme-dark .mileage-track { background: #30363d; }
-.theme-dark .mileage-thumb { background: #c9d1d9; }
-.theme-dark .mileage-check:checked + .mileage-track { background: #1f6feb; }
-.theme-dark .mileage-check:checked + .mileage-track .mileage-thumb { background: #fff; }
-.theme-dark .mileage-toggle-text { color: #c9d1d9; }
-.theme-dark .mileage-plus {
+.theme-dark .avg-card--mileage.is-plus {
   background: #0a2e1c;
   border-color: #17512f;
 }
-.theme-dark .mileage-minus {
+.theme-dark .avg-card--mileage.is-minus {
   background: #3a1518;
   border-color: #5e2329;
 }
-.theme-dark .mileage-plus .mileage-value { color: #56d364; }
-.theme-dark .mileage-minus .mileage-value { color: #ff7b72; }
-.theme-dark .mileage-sub { color: #adb6c0; }
-.theme-dark .mileage-plus .mileage-sub strong { color: #56d364; }
-.theme-dark .mileage-minus .mileage-sub strong { color: #ff7b72; }
+.theme-dark .avg-tag--mileage { background: #21262d; color: #adb6c0; }
+.theme-dark .avg-card--mileage.is-plus .avg-tag--mileage { background: #2ea043; color: #fff; }
+.theme-dark .avg-card--mileage.is-minus .avg-tag--mileage { background: #da3633; color: #fff; }
+.theme-dark .avg-card--mileage.is-plus .avg-value { color: #56d364; }
+.theme-dark .avg-card--mileage.is-minus .avg-value { color: #ff7b72; }
+.theme-dark .mileage-calc-line { color: #7d8590; }
+.theme-dark .mileage-calc-line-row b { color: #adb6c0; }
+.theme-dark .mileage-calc-line strong.is-plus { color: #56d364; }
+.theme-dark .mileage-calc-line strong.is-minus { color: #ff7b72; }
 .theme-dark .avg-section { border-top-color: #21262d; }
 .theme-dark .avg-title { color: #c9d1d9; }
 .theme-dark .avg-note { color: #8b949e; }
@@ -497,7 +439,8 @@ const 마일리지표시 = ref(false)
   .result-grid {
     grid-template-columns: 1fr;
   }
-  .avg-grid {
+  .avg-grid,
+  .avg-grid.has-mileage {
     grid-template-columns: 1fr;
   }
 }

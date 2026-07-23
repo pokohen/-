@@ -216,20 +216,33 @@ const 남은의무분 = computed(() =>
 const 남은최대분 = computed(() =>
   Math.max(0, 최대근로분.value - 반영분.value),
 )
-// 근무 마일리지: (남은 근무일 × 8시간) − 남은 정규(의무) 근무시간
-// = 남은 날을 매일 8시간씩 채웠을 때 월 의무 대비 초과(+)/부족(−) 시간
-const 남은정규분 = computed(() => 남은근무일.value * 하루근무분)
-const 마일리지분 = computed(
-  () => 남은정규분.value - (의무근로분.value - 반영분.value),
+// 재택·연차일은 각각 8시간이 자동 인정되는 미래 근무일이다.
+// 유연근무(시간 가감)는 실제 출근일에만 가능하므로, 출근일이 채워야 할 몫에서
+// 재택·연차의 자동 8시간을 먼저 제외한 뒤 출근일 수로 분배한다.
+const 자동인정분 = computed(
+  () => (재택일수.value + 연차일수환산.value) * 하루근무분,
+)
+const 남은출근의무분 = computed(() =>
+  Math.max(0, 남은의무분.value - 자동인정분.value),
+)
+const 남은출근최대분 = computed(() =>
+  Math.max(0, 남은최대분.value - 자동인정분.value),
 )
 const 의무달성일평균분 = computed(() => {
   if (출근남은일.value === 0) return 0
-  return Math.round(남은의무분.value / 출근남은일.value)
+  return Math.round(남은출근의무분.value / 출근남은일.value)
 })
 const 최대달성일평균분 = computed(() => {
   if (출근남은일.value === 0) return 0
-  return Math.round(남은최대분.value / 출근남은일.value)
+  return Math.round(남은출근최대분.value / 출근남은일.value)
 })
+// 근무 마일리지(출근일 기준): 출근 정규시간 − 출근일이 채워야 할 의무
+// 출근 정규시간 = 출근남은일 × 8시간, 출근 의무 = (의무 − 반영) − 재택·연차 자동인정
+// = 남은 출근일을 매일 8시간씩 채웠을 때 의무 대비 초과(+)/부족(−) 시간
+const 남은정규분 = computed(() => 출근남은일.value * 하루근무분)
+const 마일리지분 = computed(
+  () => 남은정규분.value - (의무근로분.value - 반영분.value - 자동인정분.value),
+)
 const 달성률 = computed(() => {
   if (의무근로분.value === 0) return 0
   return Math.min(100, Math.floor((반영분.value / 의무근로분.value) * 100))
@@ -426,6 +439,7 @@ watchEffect(() => {
       :최대달성일평균분="최대달성일평균분"
       :마일리지분="마일리지분"
       :남은정규분="남은정규분"
+      :자동인정분="자동인정분"
     />
 
     <!-- 공휴일 목록 -->
