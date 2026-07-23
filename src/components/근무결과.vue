@@ -1,4 +1,5 @@
 <script setup>
+import { ref } from 'vue'
 import { 시분변환 } from '../utils/시간포맷'
 
 defineProps({
@@ -20,7 +21,11 @@ defineProps({
   남은최대분: Number,
   의무달성일평균분: Number,
   최대달성일평균분: Number,
+  마일리지분: Number,
+  남은정규분: Number,
 })
+
+const 마일리지표시 = ref(false)
 </script>
 
 <template>
@@ -98,6 +103,32 @@ defineProps({
           최대 {{ 시분변환(최대근로분) }} − 누적 {{ 시분변환(입력분) }}<template v-if="오늘예상분 > 0"> − 오늘 {{ 시분변환(오늘예상분) }}</template>
         </div>
         <div v-else class="result-sub">최대 {{ 시분변환(최대근로분) }}</div>
+      </div>
+    </div>
+
+    <div v-if="!지난달여부 && 반영분 > 0" class="mileage-block">
+      <label class="mileage-toggle">
+        <input v-model="마일리지표시" type="checkbox" class="mileage-check" />
+        <span class="mileage-track"><span class="mileage-thumb"></span></span>
+        <span class="mileage-toggle-text">🎯 근무 마일리지 표시</span>
+      </label>
+
+      <div
+        v-if="마일리지표시"
+        class="mileage-card"
+        :class="마일리지분 >= 0 ? 'mileage-plus' : 'mileage-minus'"
+      >
+        <div class="mileage-head">
+          <span class="mileage-badge">{{ 마일리지분 >= 0 ? '적립 마일리지' : '더 해야 할 시간' }}</span>
+        </div>
+        <div class="mileage-value">
+          {{ 마일리지분 >= 0 ? '+' : '−' }}{{ 시분변환(Math.abs(마일리지분)) }}
+        </div>
+        <div class="mileage-sub">
+          남은 근무일 정규시간({{ 시분변환(남은정규분) }}) 기준,
+          <template v-if="마일리지분 >= 0">매일 8시간만 채워도 의무를 <strong>이만큼 초과</strong>합니다.</template>
+          <template v-else>매일 8시간을 채워도 의무에 <strong>이만큼 부족</strong>해 더 근무해야 합니다.</template>
+        </div>
       </div>
     </div>
 
@@ -202,6 +233,119 @@ defineProps({
   font-weight: 600;
 }
 
+/* Mileage toggle */
+.mileage-block {
+  margin: -4px 0 20px;
+}
+.mileage-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.mileage-check {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.mileage-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: #d1d6db;
+  transition: background 0.18s ease;
+}
+.mileage-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+  transition: transform 0.18s ease;
+}
+.mileage-check:checked + .mileage-track {
+  background: #3182f6;
+}
+.mileage-check:checked + .mileage-track .mileage-thumb {
+  transform: translateX(18px);
+}
+.mileage-check:focus-visible + .mileage-track {
+  box-shadow: 0 0 0 3px rgba(49, 130, 246, 0.3);
+}
+.mileage-toggle-text {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #4e5968;
+  letter-spacing: -0.01em;
+}
+.mileage-card {
+  margin-top: 14px;
+  border-radius: 14px;
+  padding: 18px 18px 16px;
+  border: 1px solid transparent;
+}
+.mileage-plus {
+  background: #e6f9f0;
+  border-color: #b6ecce;
+}
+.mileage-minus {
+  background: #fdecee;
+  border-color: #f8c9ce;
+}
+.mileage-head {
+  margin-bottom: 8px;
+}
+.mileage-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+}
+.mileage-plus .mileage-badge {
+  background: #06c755;
+  color: #fff;
+}
+.mileage-minus .mileage-badge {
+  background: #f04452;
+  color: #fff;
+}
+.mileage-value {
+  font-size: 1.9rem;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+.mileage-plus .mileage-value {
+  color: #06873e;
+}
+.mileage-minus .mileage-value {
+  color: #d63a46;
+}
+.mileage-sub {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: #5b6472;
+}
+.mileage-sub strong {
+  font-weight: 700;
+}
+.mileage-plus .mileage-sub strong {
+  color: #06873e;
+}
+.mileage-minus .mileage-sub strong {
+  color: #d63a46;
+}
+
 /* Average section */
 .avg-section {
   margin-top: 4px;
@@ -302,6 +446,24 @@ defineProps({
 .theme-dark .result-value .unit { color: #c9d1d9; }
 .theme-dark .result-sub { color: #8b949e; }
 .theme-dark .placeholder-dash { color: #484f58; }
+.theme-dark .mileage-track { background: #30363d; }
+.theme-dark .mileage-thumb { background: #c9d1d9; }
+.theme-dark .mileage-check:checked + .mileage-track { background: #1f6feb; }
+.theme-dark .mileage-check:checked + .mileage-track .mileage-thumb { background: #fff; }
+.theme-dark .mileage-toggle-text { color: #c9d1d9; }
+.theme-dark .mileage-plus {
+  background: #0a2e1c;
+  border-color: #17512f;
+}
+.theme-dark .mileage-minus {
+  background: #3a1518;
+  border-color: #5e2329;
+}
+.theme-dark .mileage-plus .mileage-value { color: #56d364; }
+.theme-dark .mileage-minus .mileage-value { color: #ff7b72; }
+.theme-dark .mileage-sub { color: #adb6c0; }
+.theme-dark .mileage-plus .mileage-sub strong { color: #56d364; }
+.theme-dark .mileage-minus .mileage-sub strong { color: #ff7b72; }
 .theme-dark .avg-section { border-top-color: #21262d; }
 .theme-dark .avg-title { color: #c9d1d9; }
 .theme-dark .avg-note { color: #8b949e; }
