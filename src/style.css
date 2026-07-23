@@ -242,6 +242,173 @@ body {
   color: #ffa198;
 }
 
+/* Input field primitives (근무설정·오늘근무입력 공용) */
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.input-group label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #374151;
+}
+.input-with-unit {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.input-with-unit input {
+  width: 100%;
+  padding: 12px 44px 12px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #0f172a;
+  background: #f8fafc;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-with-unit input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+  background: #fff;
+}
+.input-with-unit input.error {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+.input-with-unit input.error:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+/* 입력 그리드에서 전체 폭을 차지하는 행 (재택·연차·오늘 컴포넌트 루트) */
+.input-today {
+  grid-column: 1 / -1;
+}
+
+/* 설정 토글 행 (재택설정·연차설정 공용, 토스/라인 스타일) */
+.setting-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 2px;
+  border-top: 1px solid #f0f1f3;
+}
+.setting-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 2px;
+  cursor: pointer;
+  user-select: none;
+}
+.setting-head.disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.setting-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #33383f;
+  letter-spacing: -0.01em;
+}
+.setting-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 2px 12px;
+}
+.setting-body--inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.setting-body--inline .setting-hint {
+  flex: 1 1 auto;
+}
+.setting-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #8b95a1;
+  line-height: 1.5;
+}
+.setting-hint strong {
+  color: #4e5968;
+  font-weight: 700;
+}
+
+/* 토글 스위치 */
+.switch {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.switch-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.switch-input:disabled {
+  cursor: not-allowed;
+}
+.switch-track {
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  background: #d1d6db;
+  transition: background 0.2s ease;
+}
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.28);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.switch-input:checked + .switch-track {
+  background: #3182f6;
+}
+.switch-input:checked + .switch-track .switch-thumb {
+  transform: translateX(18px);
+}
+.switch-input:focus-visible + .switch-track {
+  box-shadow: 0 0 0 3px rgba(49, 130, 246, 0.3);
+}
+@media (prefers-reduced-motion: reduce) {
+  .switch-thumb { transition: none; }
+}
+
+.theme-dark .input-group label { color: #c9d1d9; }
+.theme-dark .input-with-unit input {
+  background: #0d1117;
+  border-color: #21262d;
+  color: #f0f6fc;
+}
+.theme-dark .input-with-unit input:focus { background: #0d1117; }
+.theme-dark .input-with-unit input.error {
+  border-color: #f85149;
+  background: #2d0f0f;
+}
+.theme-dark .setting-row { border-top-color: #21262d; }
+.theme-dark .setting-title { color: #f0f6fc; }
+.theme-dark .setting-hint { color: #8b949e; }
+.theme-dark .setting-hint strong { color: #c9d1d9; }
+.theme-dark .switch-track { background: #30363d; }
+.theme-dark .switch-input:checked + .switch-track { background: #1f6feb; }
+
 .holiday-list {
   list-style: none;
   padding: 0;
