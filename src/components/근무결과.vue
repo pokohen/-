@@ -23,13 +23,10 @@ const props = defineProps({
   최대달성일평균분: Number,
   마일리지분: Number,
   남은정규분: Number,
-  자동인정분: Number,
 })
 
-// 출근일이 채워야 할 의무: 마일리지 = 남은정규분 − 출근의무 이므로 출근의무 = 남은정규분 − 마일리지분
-const 출근의무분 = computed(() => props.남은정규분 - props.마일리지분)
-// 남은 의무 전체(재택·연차 자동인정 포함) = 출근의무 + 자동인정분
-const 남은의무총분 = computed(() => 출근의무분.value + props.자동인정분)
+// 남은 의무: 마일리지 = 남은정규분 − 남은의무 이므로 남은의무 = 남은정규분 − 마일리지분
+const 남은의무합 = computed(() => props.남은정규분 - props.마일리지분)
 </script>
 
 <template>
@@ -141,11 +138,8 @@ const 남은의무총분 = computed(() => 출근의무분.value + props.자동�
         <div class="mileage-calc-line-row">
           출근 {{ 출근남은일 }}일 × 8h = <b>정규 {{ 시분변환(남은정규분) }}</b>
         </div>
-        <div v-if="자동인정분 > 0" class="mileage-calc-line-row">
-          남은 의무 {{ 시분변환(남은의무총분) }} − 재택·연차 {{ 시분변환(자동인정분) }} = <b>출근 의무 {{ 시분변환(출근의무분) }}</b>
-        </div>
         <div class="mileage-calc-line-row">
-          정규 {{ 시분변환(남은정규분) }} − {{ 자동인정분 > 0 ? '출근 의무' : '의무' }} {{ 시분변환(출근의무분) }} =
+          정규 {{ 시분변환(남은정규분) }} − 남은 의무 {{ 시분변환(남은의무합) }} =
           <strong :class="마일리지분 >= 0 ? 'is-plus' : 'is-minus'">{{ 마일리지분 >= 0 ? '+' : '−' }}{{ 시분변환(Math.abs(마일리지분)) }}</strong>
         </div>
       </div>
